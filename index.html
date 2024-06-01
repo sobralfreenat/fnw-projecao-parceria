@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Projeção Parceria</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        form label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        form input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        form input[type="submit"] {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        form input[type="submit"]:hover {
+            background-color: #218838;
+        }
+
+        #results {
+            margin-top: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #chart {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Projeção Parceria</h1>
+    <h5>No Lucro Presumido, a tributação para empresas enquadradas no CNAE de consultoria empresarial varia de 13,33% a 16,33% sobre o faturamento mensal</h5>
+    <form id="projectionForm">
+        <label for="cost_per_pdi">Custo por Acesso(R$):</label>
+        <input type="text" id="cost_per_pdi" name="cost_per_pdi"><br><br>
+        <label for="quantity">Quantidade Acessos:</label>
+        <input type="text" id="quantity" name="quantity"><br><br>
+        <label for="desired_profit">Lucro Desejado (%):</label>
+        <input type="text" id="desired_profit" name="desired_profit"><br><br>
+        <label for="operating_expenses">Despesas Operacionais (R$):</label>
+        <input type="text" id="operating_expenses" name="operating_expenses"><br><br>
+        <label for="cac">CAC (Custo de Aquisição de Cliente) (R$):</label>
+        <input type="text" id="cac" name="cac"><br><br>
+        <label for="price_per_pdi">Preço por Acesso (mensalidade) (R$):</label>
+        <input type="text" id="price_per_pdi" name="price_per_pdi"><br><br>
+        <label for="tax_rate">Alíquota de Imposto (%):</label>
+        <input type="text" id="tax_rate" name="tax_rate"><br><br> <!-- Nova linha para o campo de entrada da alíquota do imposto -->
+        <input type="submit" value="Calcular">
+    </form>
+
+    <div id="results">
+        <h2>Resultados Estimados da Direção Comercial</h2>
+        <p>Faturamento: R$ <span id="revenue" title="Total de receitas provenientes das vendas de acessos."></span></p>
+        <p>Custos Totais: R$ <span id="costs" title="Custos totais incluindo despesas operacionais e custos diretos dos acessos."></span></p>
+        <p>EBITDA: R$ <span id="ebitda" title="Lucro antes de juros, impostos, depreciação e amortização, uma medida da lucratividade da empresa."></span></p>
+        <p>Lucro Bruto: R$ <span id="gross_profit" title="Lucro total obtido após deduzir os custos diretos da receita."></span></p>
+        <p>Imposto sobre Faturamento: R$ <span id="tax" title="Imposto calculado sobre o faturamento mensal."></span></p>
+        <p>Lucro Líquido: R$ <span id="net_profit" title="Lucro líquido da empresa após deduzir todas as despesas, incluindo impostos."></span></p>
+        <p>Preço sugerido por Acesso: R$ <span id="suggested_price_per_pdi" title="Preço médio sugerido por acesso, considerando o lucro desejado."></span></p>
+        <p>Preço sugerido Total Assessoria: R$ <span id="suggested_price_total" title="Preço total sugerido para o número total de acessos, considerando o lucro desejado."></span></p>
+        <p id="breakeven" title="Ponto de Equilíbrio"></p>
+    </div>
+
+    <div id="chart"></div>
+
+    <!-- Botões para salvar e carregar estado -->
+    <div style="text-align: center;">
+        <button id="salvarEstadoBtn" style="width: 20%; padding: 10px; background-color: #1b0bff; color: rgb(255, 255, 255);">Salvar Estado</button>
+        <input type="file" id="fileInput" style="display: none;" onchange="carregarEstado(event)">
+        <button onclick="document.getElementById('fileInput').click()" style="width: 20%; padding: 10px; background-color: #c22fc7; color: white;">Carregar Estado</button>
+    </div>
+
+    <script>
+        document.getElementById('projectionForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const cost_per_pdi = parseFloat(document.getElementById('cost_per_pdi').value);
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const desired_profit = parseFloat(document.getElementById('desired_profit').value);
+            const operating_expenses = parseFloat(document.getElementById('operating_expenses').value) || 0;
+            const cac = parseFloat(document.getElementById('cac').value) || 0;
+            const price_per_pdi = parseFloat(document.getElementById('price_per_pdi').value);
+            const tax_rate =
+ parseFloat(document.getElementById('tax_rate').value) || 0; // Nova linha para obter a alíquota do imposto
+
+            if (isNaN(cost_per_pdi) || isNaN(quantity) || isNaN(desired_profit) || isNaN(operating_expenses) || isNaN(cac) || isNaN(price_per_pdi) || isNaN(tax_rate)) {
+                alert('Por favor, insira números válidos em todos os campos.');
+                return;
+            }
+
+            const cost = cost_per_pdi * quantity;
+            const suggested_price_per_pdi = cost_per_pdi * (1 + desired_profit / 100);
+            document.getElementById('suggested_price_per_pdi').textContent = suggested_price_per_pdi.toFixed(2);
+            const suggested_price_total = suggested_price_per_pdi * quantity;
+            document.getElementById('suggested_price_total').textContent = suggested_price_total.toFixed(2);
+            const revenue = price_per_pdi * quantity;
+            document.getElementById('revenue').textContent = revenue.toFixed(2);
+            const gross_profit = revenue - cost;
+            document.getElementById('gross_profit').textContent = gross_profit.toFixed(2);
+            const costs = operating_expenses + cost; // Calculando os custos totais
+            document.getElementById('costs').textContent = costs.toFixed(2); // Atualizando os custos totais
+            const tax = revenue * (tax_rate / 100);
+            document.getElementById('tax').textContent = tax.toFixed(2);
+            const net_profit = gross_profit - operating_expenses - cac - tax;
+            document.getElementById('net_profit').textContent = net_profit.toFixed(2);
+            let ebitda = revenue - costs; // Ajustando o cálculo do EBITDA
+            if (ebitda < 0) {
+                ebitda = 0;
+            }
+            document.getElementById('ebitda').textContent = ebitda.toFixed(2);
+
+            const data = [
+                {
+                    x: ['Faturamento', 'Custos Totais', 'Lucro Bruto', 'Imposto sobre Faturamento', 'Lucro Líquido', 'Preço sugerido por PDI', 'Preço sugerido Total'],
+                    y: [revenue, costs, gross_profit, tax, net_profit, suggested_price_per_pdi, suggested_price_total],
+                    type: 'bar'
+                }
+            ];
+
+            const layout = {
+                title: 'Projeção Financeira',
+                xaxis: { title: 'Métrica' },
+                yaxis: { title: 'Valor (R$)' }
+            };
+
+            Plotly.newPlot('chart', data, layout);
+        });
+
+        function salvarEstado() {
+            const formValues = {
+                cost_per_pdi: document.getElementById('cost_per_pdi').value,
+                quantity: document.getElementById('quantity').value,
+                desired_profit: document.getElementById('desired_profit').value,
+                operating_expenses: document.getElementById('operating_expenses').value,
+                cac: document.getElementById('cac').value,
+                price_per_pdi: document.getElementById('price_per_pdi').value,
+                tax_rate: document.getElementById('tax_rate').value
+            };
+
+            if (isNaN(formValues.cost_per_pdi) || isNaN(formValues.quantity) || isNaN(formValues.desired_profit) || isNaN(formValues.operating_expenses) || isNaN(formValues.cac) || isNaN(formValues.price_per_pdi) || isNaN(formValues.tax_rate)) {
+                alert('Por favor, insira números válidos em todos os campos.');
+                return;
+            }
+
+            const breakeven = formValues.operating_expenses / ((formValues.price_per_pdi * (1 + formValues.desired_profit / 100)) - formValues.cost_per_pdi);
+            const breakeven_formatted = breakeven.toFixed(2);
+
+            document.getElementById('breakeven').textContent = `Ponto de Equilíbrio: ${breakeven_formatted} acessos`;
+
+            const existing_breakeven = document.getElementById('breakeven');
+            if (existing_breakeven) {
+                existing_breakeven.parentNode.removeChild(existing_breakeven);
+            }
+
+            // Criando o elemento para adicionar ao DOM
+            const breakeven_element = document.createElement('p');
+            breakeven_element.textContent = `Ponto de Equilíbrio: ${breakeven_formatted} acessos`;
+            breakeven_element.id = 'breakeven';
+
+            document.getElementById('results').appendChild(breakeven_element); // Adicionando o elemento ao DOM
+
+            const fileName = prompt('Por favor, insira o nome do arquivo:');
+            if (!fileName) return;
+
+            const json = JSON.stringify(formValues);
+
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function carregarEstado(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const contents = e.target.result;
+                const data = JSON.parse(contents);
+
+                document.getElementById('cost_per_pdi').value = data.cost_per_pdi;
+                document.getElementById('quantity').value = data.quantity;
+                document.getElementById('desired_profit').value = data.desired_profit;
+                document.getElementById('operating_expenses').value = data.operating_expenses;
+                document.getElementById('cac').value = data.cac;
+                document.getElementById('price_per_pdi').value = data.price_per_pdi;
+                document.getElementById('tax_rate').value = data.tax_rate;
+
+                document.getElementById('projectionForm').dispatchEvent(new Event('submit'));
+            };
+
+            reader.readAsText(file);
+        }
+
+        document.getElementById('salvarEstadoBtn').addEventListener('click', function() {
+            salvarEstado();
+        });
+    </script>
+</body>
+</html>
